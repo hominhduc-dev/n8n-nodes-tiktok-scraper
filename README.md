@@ -1,96 +1,103 @@
-![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
-
 # n8n-nodes-tiktok-scraper
 
-An **n8n community node** that scrapes TikTok profile posts using **Puppeteer**.
-Supports **Video / Photo / All**, profile counters (**followers, following, likes**), **cookies**, **proxy**, concurrency and anti-CAPTCHA friendly pacing.
+An **n8n community node** that scrapes TikTok profile posts using **Puppeteer**.  
+Supports video and photo posts, profile counters (followers / following / likes), cookies, proxy, concurrency, and anti-CAPTCHA-friendly pacing.
 
-> ⚠️ Heads-up: Puppeteer may not run on **n8n Cloud**. Self-hosting is recommended.
+> **Note:** Puppeteer requires a running Chromium/Chrome instance. It may not work on **n8n Cloud** — self-hosting is recommended.
 
 ---
 
 ## Features
 
-* Scrape profile grid (supports both **video** and **photo** posts)
-* Per-item details: `type_post`, `video_id`, counts (views/likes/comments/shares/saves), caption, hashtags, music, duration
-* Fallback timestamp from **video ID** (works even when DOM metadata isn’t available)
-* Profile counters (followers / following / total likes) appended to each item
-* Cookies, proxy, custom UA, extra headers, viewports, retries
-* Performance switch: **Block Media** (images/media/css/fonts) while scrolling
+- Scrape a profile grid for **video**, **photo**, or **all** post types
+- Per-item fields: `type_post`, `video_id`, view/like/comment/share/save counts, caption, hashtags, music, duration
+- Timestamp extracted from the **TikTok video ID** as a fallback (works even when DOM metadata is unavailable)
+- Profile counters (`followers`, `following`, `likes`) attached to every output item
+- Optional **profile summary** item emitted at the start of output
+- Configurable cookies, proxy URL, custom User-Agent, extra HTTP headers, and viewport
+- **Block Media** mode: skips images, fonts, stylesheets, and media during scrolling for faster execution
+- Per-item retry with exponential backoff
 
 ---
 
 ## Installation
 
-### A) Install from n8n UI (Community Nodes)
+### From the n8n UI (Community Nodes)
 
-1. `Settings → Community Nodes → Install`
-2. Enter package name: **`n8n-nodes-tiktok-scraper`**
-3. After install, search for **TikTok Scraper** in the node list.
+1. Go to **Settings → Community Nodes → Install**
+2. Enter the package name: `n8n-nodes-tiktok-scraper`
+3. After installation, search for **TikTok Scraper** in the node panel.
 
-> If you don’t see “Community Nodes”, enable the env var:
+> If "Community Nodes" is not visible, set the environment variable:  
 > `N8N_COMMUNITY_PACKAGES_ENABLED=true`
 
-### B) Self-host via custom extensions folder
+### Via custom extensions folder (self-hosted)
 
 ```bash
 export N8N_CUSTOM_EXTENSIONS=/path/to/extensions
 cd $N8N_CUSTOM_EXTENSIONS
 npm i n8n-nodes-tiktok-scraper
-# restart n8n (or docker restart) and the node will appear
+# restart n8n; the node will appear automatically
 ```
 
 ---
 
 ## Requirements
 
-* Node.js **>= 18**
-* A runtime that can launch **Chromium/Chrome** for Puppeteer
-* For Docker: increase shared memory (`shm_size: "1gb"`) to avoid Chrome crashes
+- Node.js **>= 20.15**
+- A runtime that can launch **Chromium or Chrome** for Puppeteer
+- Docker: increase shared memory to avoid Chrome crashes — `shm_size: "1gb"`
 
 ---
 
-## Usage
-
-Add **TikTok Scraper** node to your workflow and configure:
+## Node Parameters
 
 ### Required
 
-* **Username**: TikTok handle without `@` (e.g., `tiktok`)
+| Parameter | Description |
+|-----------|-------------|
+| **Username** | TikTok handle without `@` (e.g. `tiktok`) |
 
-### Core options
+### Core Options
 
-* **Max Videos**: `0 = unlimited` (default: 100)
-* **Post Type**: `All | Video | Photo`
-* **Concurrency**: parallel tabs (default: 4)
-* **Per-Video Delay (MS)**: base delay per item (default: 500)
-* **Headless**: `True | New | False` (default: True)
-* **Timeout (MS)**: navigation/selector wait (default: 45000)
-* **Hard Scroll Timeout (MS)**: max time to scroll profile (default: 600000)
-* **User Agent**: override if needed
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| **Max Videos** | `100` | Maximum posts to scrape. `0` = unlimited |
+| **Post Type** | `All` | `All`, `Video`, or `Photo` |
+| **Concurrency** | `4` | Number of post tabs opened in parallel (1–10) |
+| **Per-Video Delay (MS)** | `500` | Base delay between post scrapes in ms |
+| **Headless** | `True` | Chromium headless mode: `True`, `New`, or `False` |
+| **Timeout (MS)** | `45000` | Navigation and selector wait timeout |
+| **Hard Scroll Timeout (MS)** | `600000` | Maximum total time allowed for profile scrolling |
+| **User Agent** | _(random)_ | Override the default browser User-Agent string |
 
-### Additional Options (collection)
+### Additional Options
 
-* **Block Media (Faster)**: boolean (default: **true**)
-* **Cookies (JSON Array)**: paste an **array** of cookies from your browser session
-  Example:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| **Block Media (Faster)** | `true` | Block images, media, fonts, and stylesheets during scrolling |
+| **Cookies (JSON Array)** | — | Browser session cookies as a JSON array (see example below) |
+| **Emit Profile Summary** | `false` | Prepend a summary item with follower/like/following counts |
+| **Executable Path** | — | Custom Chrome/Chromium binary path |
+| **Extra Headers** | — | Additional HTTP headers (key/value pairs) |
+| **Proxy URL** | — | e.g. `http://user:pass@host:port` |
+| **Retries** | `2` | Retry attempts per post on failure (0–10) |
+| **Viewport Width / Height** | `1366 × 768` | Browser viewport dimensions |
 
-  ```json
-  [
-    { "name": "ttwid", "value": "…", "domain": ".tiktok.com", "path": "/", "httpOnly": true, "secure": true },
-    { "name": "sid_tt", "value": "…", "domain": ".tiktok.com", "path": "/", "httpOnly": true, "secure": true }
-  ]
-  ```
-* **Proxy URL**: e.g., `http://user:pass@host:port`
-* **Executable Path**: custom Chrome/Chromium path (optional)
-* **Extra Headers**: key/value list (e.g., `Accept-Language`)
-* **Retries**: per-item retry attempts (default: 2)
-* **Viewport Width / Height**: default `1366 × 768`
-* **Emit Profile Summary**: prepend one summary item with counters
+#### Cookies example
+
+```json
+[
+  { "name": "ttwid", "value": "...", "domain": ".tiktok.com", "path": "/", "httpOnly": true, "secure": true },
+  { "name": "sid_tt", "value": "...", "domain": ".tiktok.com", "path": "/", "httpOnly": true, "secure": true }
+]
+```
 
 ---
 
-## Output (example)
+## Output Schema
+
+Each output item contains:
 
 ```json
 {
@@ -106,10 +113,10 @@ Add **TikTok Scraper** node to your workflow and configure:
   "comments": 12,
   "shares": 3,
   "saves": 0,
+  "duration": 17,
   "author_username": "user",
   "music_title": "Track",
   "music_author": "Artist",
-  "duration": 17,
   "hashtags": ["tag"],
   "profile_following": 827,
   "profile_followers": 70700,
@@ -117,30 +124,41 @@ Add **TikTok Scraper** node to your workflow and configure:
 }
 ```
 
-> Numeric fields default to **0** when the source value is missing/`null`.
+> Numeric fields default to `0` when the source value is missing or `null`.
+
+When **Emit Profile Summary** is enabled, a summary item is prepended:
+
+```json
+{
+  "username": "user",
+  "profile_following": 827,
+  "profile_followers": 70700,
+  "profile_likes": 321600,
+  "scraped_videos": 50
+}
+```
 
 ---
 
 ## Anti-CAPTCHA Tips
 
-To reduce verification prompts:
-
-* Use **valid cookies** from a real Chrome session (logged in, CAPTCHA solved)
-* Prefer **residential proxy** from the same country as your cookies
-* **Headless**: True, **Concurrency**: 1, **Per-Video Delay**: 1200–2000 ms
-* Keep **Block Media (Faster)** enabled
-* Set **Accept-Language** to match your region, e.g. `vi-VN,vi;q=0.9,en-US,en;q=0.8`
-* Use a realistic, consistent **User Agent**
+- Provide **valid cookies** from a real Chrome session (logged in, any CAPTCHA already solved)
+- Use a **residential proxy** from the same country as your cookies
+- Set **Concurrency** to `1` and **Per-Video Delay** to `1200–2000 ms`
+- Keep **Block Media** enabled
+- Set `Accept-Language` via Extra Headers to match your region, e.g. `vi-VN,vi;q=0.9,en-US,en;q=0.8`
+- Use a realistic, consistent **User Agent**
 
 ---
 
-## Docker (example)
+## Docker Example
 
 ```yaml
 services:
   n8n:
     image: n8nio/n8n:latest
     environment:
+      N8N_COMMUNITY_PACKAGES_ENABLED: "true"
       N8N_CUSTOM_EXTENSIONS: /custom
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
       TZ: Asia/Ho_Chi_Minh
@@ -150,40 +168,39 @@ services:
     shm_size: "1gb"
 ```
 
-If your base image doesn’t include Chromium, extend the image and install it (Debian/Ubuntu packages), then set `PUPPETEER_EXECUTABLE_PATH`.
+If your base image does not include Chromium, install it (e.g. via Debian/Ubuntu packages) and set `PUPPETEER_EXECUTABLE_PATH` to the binary path.
 
 ---
 
 ## Troubleshooting
 
-* **CAPTCHA detected** → provide cookies, use residential proxy, reduce concurrency and increase delays.
-* **Navigation timeout exceeded** → increase `Timeout (MS)`; ensure proxy/cookies/headers are valid.
-* **Chromium not found** → install Chromium or set `Executable Path`.
-* **n8n Cloud** → Puppeteer may not be supported; self-host or use a remote browser service.
+| Error | Fix |
+|-------|-----|
+| CAPTCHA detected | Supply cookies, use a residential proxy, lower concurrency, increase delay |
+| Navigation timeout exceeded | Increase `Timeout (MS)`; verify proxy, cookies, and headers are valid |
+| Chromium not found | Install Chromium or set `Executable Path` to the binary |
+| No posts scraped | Profile may be private or the username is incorrect |
+| Crashes on Docker | Add `shm_size: "1gb"` to your Compose service |
+| Node not visible in n8n Cloud | Puppeteer is not supported on n8n Cloud; use a self-hosted instance |
 
 ---
 
 ## Development
 
 ```bash
-npm run lint
-npm run build
+npm run lint        # ESLint check
+npm run build       # Compile TypeScript + copy icons
 npm publish --access public
 ```
-
-Ensure `dist/**`, `index.js`, `icon.svg` are included in the npm package (via `files` + a copy script if needed).
 
 ---
 
 ## Disclaimer
 
-This project is for educational/integration purposes. Use responsibly and respect TikTok’s Terms of Service and local laws.
+This project is for educational and automation purposes. Use responsibly and in compliance with TikTok's Terms of Service and applicable local laws.
 
 ---
 
 ## License
 
-MIT
-
----
-
+[MIT](LICENSE.md)
